@@ -7,4 +7,4 @@
 |Bodenfeuchtesensor||
 |DS18B20|Bodentemperatursensor|
 |Anemometer|Windgeschwindigkeit|
-||Bewegungssensor|
+|Bewegungssensor||
