@@ -1,10 +1,10 @@
-|Name|Verwendungszweck|
-|---|---|
-|Photozelle|Helligkeitsmessung|
-|Niederschlagssensor (2 Stk)|Niederschlagsdetektion|
-|DHT22|Lufttemperatur & -feuchtigkeit|
-|BMP180|Luftdruckmessung|
-|Bodenfeuchtesensor||
-|DS18B20|Bodentemperatursensor|
-|Anemometer|Windgeschwindigkeit|
-|Bewegungssensor||
+|Name|Verwendungszweck|Digital/Analog|
+|---|---|---|
+|Photozelle|Helligkeitsmessung|Analog|
+|Niederschlagssensor (2 Stk)|Niederschlagsdetektion|Analog|
+|DHT22|Lufttemperatur & -feuchtigkeit|Digital|
+|BMP180|Luftdruckmessung|Digital|
+|Bodenfeuchtesensor||Analog|
+|DS18B20|Bodentemperatursensor|Digital|
+|Anemometer|Windgeschwindigkeit|Analog|
+|Bewegungssensor||Analog|
