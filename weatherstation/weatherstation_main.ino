@@ -2,6 +2,9 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <aREST.h>
+#include <PubSubClient.h>
+#include <DHT.h>
+#include <OneWire.h>
 #include <avr/wdt.h>
 
 //----------------------network--------------------------------
@@ -18,18 +21,27 @@ EthernetServer server(80);
 aREST rest = aREST();
 
 
-//-----------------------const---------------------------------
+//------------------------Pins--------------------------------
 
-const int switch1Pin = 13;
-const int switch2Pin = 5;
-const int windPin = 3;          // anschluss des reedkontaktes
+#define oneWire18S20_ID 0x10
+#define oneWire18B20_ID 0x28
+#define DHTTYPE DHT22
+#define WINDPIN 3 //Interrupt
+#define DHTPIN 4
+#define PIRPIN 3
+#define SOILTEMPPIN 8
+#define SOILMOISPIN 9
+#define SOILMOISANALOGPIN A0
+#define SWITCH1PIN 13
+#define SWITCH2PIN 13
+
+//-----------------------const---------------------------------
 
 const float windFactor = 2.4;   // umrechnungsfaktor von umdrehungen in geschwindigkeit
 const int measureTime = 10;      // messzeitraum in sekunden
 
-
 //--------------------- variablen------------------------------
-volatile unsigned int windCounter = 0;  //interner zaehler fŸr umdrehungen 
+volatile unsigned int windCounter = 0;  //interner zaehler für umdrehungen 
 float windSpeed = 0.0;
 
 float airTemp = 0.0;
@@ -56,6 +68,21 @@ int timer = 1;
 void countWind() {
    windCounter ++; 
 }
+
+//-------------------------DHT-Setup-------------------------------
+// Initialize DHT sensor 
+// NOTE: For working with a faster than ATmega328p 16 MHz Arduino chip, like an ESP8266,
+// you need to increase the threshold for cycle counts considered a 1 or 0.
+// You can do this by passing a 3rd parameter for this threshold.  It's a bit
+// of fiddling to find the right value, but in general the faster the CPU the
+// higher the value.  The default for a 16mhz AVR is a value of 6.  For an
+// Arduino Due that runs at 84mhz a value of 30 works.
+// This is for the ESP8266 processor on ESP-01 
+DHT dht(DHTPIN, DHTTYPE, 6); // 11 works fine for ESP8266
+
+//--------------------------OneWire---------------------------------
+
+OneWire oneWire(SOILTEMPPIN);
 
 //----------------------------main----------------------------------
 
@@ -100,14 +127,12 @@ void setup() {
 
   //Anemometer init
   time = millis();
-  pinMode(windPin, INPUT_PULLUP);
+  pinMode(WINDPIN, INPUT_PULLUP);
 
   //pinmode init
-  pinMode(switch1Pin, OUTPUT);
-  pinMode(switch2Pin, OUTPUT);
+  pinMode(SWITCH1PIN, OUTPUT);
+  pinMode(SWITCH2PIN, OUTPUT);
 }
-
-//--------------------Start Measure Wind----------------------
 
 void startMeasureWind(){
   //starten des messzeitraums
@@ -118,10 +143,8 @@ void startMeasureWind(){
   windCounter = 0;
   time = millis();
   //zaehl-interrupt aktivieren
-  attachInterrupt(digitalPinToInterrupt(windPin),countWind,FALLING);
+  attachInterrupt(digitalPinToInterrupt(WINDPIN),countWind,FALLING);
 }
-
-//-------------------Stop Measure Wind----------------------
 
 void stopMeasureWind(){
   //zaehl-interrupt deaktivieren
@@ -140,7 +163,78 @@ void stopMeasureWind(){
   Serial.println(" km/h");
 }
 
-//--------------------Rest Switch1-------------------------
+float getAirTemp(){
+  float temp_f = dht.readTemperature(true);     // Read temperature as Fahrenheit
+  float temp_c = (((temp_f-32.0)*5/9)-1);       // Convert temperature to Celsius + Correction
+
+  if (isnan(temp_c)){
+    temp_f = dht.readTemperature(true);     // if read fails try one more time
+    temp_c = (((temp_f-32.0)*5/9)-1);
+  }
+  if (isnan(temp_c)){
+    return -100.0;
+  }
+  return temp_c;
+}
+
+int getAirHum(){
+  int humidity = dht.readHumidity();       // Read humidity (percent)
+  if(isnan(humidity)){
+    humidity = dht.readHumidity();
+  }
+  if(isnan(humidity)){
+    return -1;
+  }
+  return humidity;
+}
+
+boolean getSoilTemp(){
+  oneWire.reset_search();
+  byte i;
+  byte present = 0;
+  byte data[12];
+  byte addr[8];
+  //find a device
+  if (!oneWire.search(addr)) {
+    oneWire.reset_search();
+    return false;
+  }
+  
+  if (OneWire::crc8( addr, 7) != addr[7]) {
+    return false;
+  }
+   
+  if (addr[0] != oneWire18S20_ID && addr[0] != oneWire18B20_ID) {
+    return false;
+  }
+   
+  oneWire.reset();
+  oneWire.select(addr);
+  // Start conversion
+  oneWire.write(0x44, 1);
+  // Wait some time...
+  delay(850);
+  present = oneWire.reset();
+  oneWire.select(addr);
+  // Issue Read scratchpad command
+  oneWire.write(0xBE);
+  // Receive 9 bytes
+  for ( i = 0; i < 9; i++) {
+    data[i] = oneWire.read();
+  }
+  // Calculate temperature value
+  soilTemp = ( (data[1] << 8) + data[0] )*0.0625;
+  return true;
+}
+
+double getSoilMois(){
+  double soilMois = analogRead(SOILMOISANALOGPIN);
+  boolean soilMoisDry = digitalRead(SOILMOISPIN);
+  Serial.println(soilMois);
+  Serial.println(soilMoisDry);
+
+  return soilMois;
+}
 
 int switch1(String param){
   Serial.println("switch1.param : "+param);
@@ -157,8 +251,6 @@ int switch1(String param){
   }
 }
 
-//--------------------Rest Switch2-------------------------
-
 int switch2(String param){
   Serial.println("switch2.param : "+param);
 
@@ -173,8 +265,6 @@ int switch2(String param){
       Serial.println("switch2 : off");
   }
 }
-
-//-----------------------loop-------------------------
 
 void loop() {
   // put your main code here, to run repeatedly:
