@@ -27,18 +27,24 @@ aREST rest = aREST();
 #define oneWire18B20_ID 0x28
 #define DHTTYPE DHT22
 #define WINDPIN 3 //Interrupt
-#define DHTPIN 4
-#define PIRPIN 3
+#define PIRPIN 2 //Interrupt
+#define DHTPIN 6
 #define SOILTEMPPIN 8
-#define SOILMOISPIN 9
+#define SOILMOISPIN 22
+#define BRIGHTNESSPIN 9
+#define BRIGHTNESSANALOGPIN A10
 #define SOILMOISANALOGPIN A0
+#define RAIN1PIN 7
+#define RAIN1ANALOGPIN A8
+#define RAIN2PIN 8
+#define RAIN2ANALOGPIN A9
 #define SWITCH1PIN 13
 #define SWITCH2PIN 13
 
 //-----------------------const---------------------------------
 
 const float windFactor = 2.4;   // umrechnungsfaktor von umdrehungen in geschwindigkeit
-const int measureTime = 10;      // messzeitraum in sekunden
+const int measureTime = 10;     // messzeitraum in sekunden
 
 //--------------------- variablen------------------------------
 volatile unsigned int windCounter = 0;  //interner zaehler für umdrehungen 
@@ -51,7 +57,9 @@ float airPres = 0.0;
 float soilTemp = 0.0;
 float soilMois = 0.0;
 
+int motion = 0;
 int bright = 0;
+int brightness = 0;
 int precip = 0;
 
 bool switch1_state = false;
@@ -102,7 +110,9 @@ void setup() {
   rest.variable("air_pressure", &airPres);
   
   rest.variable("soil_temperature", &soilTemp);
-  rest.variable("soil_moisture", &soilMois);  
+  rest.variable("soil_moisture", &soilMois); 
+
+  rest.variable("motion_detector", &motion);
 
   rest.variable("brightness", &bright);
   rest.variable("precipation", &precip);
@@ -128,6 +138,10 @@ void setup() {
   //Anemometer init
   time = millis();
   pinMode(WINDPIN, INPUT_PULLUP);
+
+  //motion detector init
+  pinMode(PIRPIN, INPUT);
+  attachInterrupt(digitalPinToInterrupt(PIRPIN),getPir,RISING);
 
   //pinmode init
   pinMode(SWITCH1PIN, OUTPUT);
@@ -174,6 +188,8 @@ float getAirTemp(){
   if (isnan(temp_c)){
     return -100.0;
   }
+  Serial.print("Air Temperature: ");
+  Serial.println(temp_c);
   return temp_c;
 }
 
@@ -185,6 +201,8 @@ int getAirHum(){
   if(isnan(humidity)){
     return -1;
   }
+  Serial.print("Air Humidity: ");
+  Serial.println(humidity);
   return humidity;
 }
 
@@ -224,16 +242,50 @@ boolean getSoilTemp(){
   }
   // Calculate temperature value
   soilTemp = ( (data[1] << 8) + data[0] )*0.0625;
+  Serial.print("Soil Temperature: ");
+  Serial.println(soilTemp);
   return true;
 }
 
 double getSoilMois(){
   double soilMois = analogRead(SOILMOISANALOGPIN);
   boolean soilMoisDry = digitalRead(SOILMOISPIN);
+  Serial.print("Soil Moisture: ");
   Serial.println(soilMois);
+  Serial.print("Moist: ");
   Serial.println(soilMoisDry);
-
   return soilMois;
+}
+
+int getBrightness(){
+  brightness = analogRead(BRIGHTNESSANALOGPIN);
+  bright = digitalRead(BRIGHTNESSPIN);
+  Serial.print("Brightness: ");
+  Serial.println(brightness);
+  Serial.print("Bright: ");
+  Serial.println(bright);
+  return soilMois;
+}
+
+int getPrecip(){
+  int rain1 = analogRead(RAIN1ANALOGPIN);
+  int rain1a = digitalRead(RAIN1PIN);
+  int rain2 = analogRead(RAIN2ANALOGPIN);
+  int rain2a = digitalRead(RAIN2PIN);
+  Serial.print("rain1: ");
+  Serial.println(rain1);
+  Serial.print("rain1a: ");
+  Serial.println(rain1a);
+  Serial.print("rain2: ");
+  Serial.println(rain2);
+  Serial.print("rain2a: ");
+  Serial.println(rain2a);
+  return 0;
+}
+
+void getPir(){
+  motion = digitalRead(PIRPIN);
+  Serial.println("Motion detected!");
 }
 
 int switch1(String param){
@@ -278,10 +330,26 @@ void loop() {
     // stop interupt
     stopMeasureWind();
 
+    airTemp = getAirTemp();
+    airHum = getAirHum();
+    soilMois = getSoilMois();
+    brightness = getBrightness();
+    precip = getPrecip();
+    getSoilTemp();
 
+    Serial.print("Motion: ");
+    Serial.println(motion);
+
+    //reset motion
+    motion = 0;
     
     //reset timer
     timer = 0;
+
+    Serial.println(#######################);
+    Serial.println(#######################);
+    Serial.println(#######################);
+    
     startMeasureWind();
   }
   
