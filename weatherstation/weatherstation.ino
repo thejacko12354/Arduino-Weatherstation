@@ -1,4 +1,5 @@
 // Libraries
+#include <SFE_BMP180.h>
 #include <SPI.h>
 #include <Ethernet.h>
 #include <aREST.h>
@@ -29,7 +30,7 @@ aREST rest = aREST();
 #define WINDPIN 3 //Interrupt
 #define PIRPIN 2 //Interrupt
 #define DHTPIN 6
-#define SOILTEMPPIN 8
+#define SOILTEMPPIN 5
 #define SOILMOISPIN 22
 #define BRIGHTNESSPIN 9
 #define BRIGHTNESSANALOGPIN A10
@@ -38,8 +39,8 @@ aREST rest = aREST();
 #define RAIN1ANALOGPIN A8
 #define RAIN2PIN 8
 #define RAIN2ANALOGPIN A9
-#define SWITCH1PIN 13
-#define SWITCH2PIN 13
+#define SWITCH1PIN 30
+#define SWITCH2PIN 30
 
 //-----------------------const---------------------------------
 
@@ -87,6 +88,10 @@ void countWind() {
 // Arduino Due that runs at 84mhz a value of 30 works.
 // This is for the ESP8266 processor on ESP-01 
 DHT dht(DHTPIN, DHTTYPE, 6); // 11 works fine for ESP8266
+
+//--------------------------BMP180---------------------------------
+
+SFE_BMP180 pressure;
 
 //--------------------------OneWire---------------------------------
 
@@ -139,13 +144,23 @@ void setup() {
   time = millis();
   pinMode(WINDPIN, INPUT_PULLUP);
 
+  // BMP180 init
+  if (pressure.begin())
+    Serial.println("BMP180 init success");
+  else
+  {
+    Serial.println("BMP180 init fail\n\n");
+  }
+
   //motion detector init
   pinMode(PIRPIN, INPUT);
   attachInterrupt(digitalPinToInterrupt(PIRPIN),getPir,RISING);
 
   //pinmode init
   pinMode(SWITCH1PIN, OUTPUT);
+  digitalWrite(SWITCH1PIN, HIGH);
   pinMode(SWITCH2PIN, OUTPUT);
+  digitalWrite(SWITCH2PIN, HIGH);
 }
 
 void startMeasureWind(){
@@ -268,19 +283,14 @@ int getBrightness(){
 }
 
 int getPrecip(){
-  int rain1 = analogRead(RAIN1ANALOGPIN);
-  int rain1a = digitalRead(RAIN1PIN);
-  int rain2 = analogRead(RAIN2ANALOGPIN);
-  int rain2a = digitalRead(RAIN2PIN);
-  Serial.print("rain1: ");
-  Serial.println(rain1);
-  Serial.print("rain1a: ");
-  Serial.println(rain1a);
-  Serial.print("rain2: ");
-  Serial.println(rain2);
-  Serial.print("rain2a: ");
-  Serial.println(rain2a);
-  return 0;
+  int rain1 = ! digitalRead(RAIN1PIN);
+  int rain2 = ! digitalRead(RAIN2PIN);
+
+  int rain1a = analogRead(RAIN1ANALOGPIN);
+  int rain2a = analogRead(RAIN2ANALOGPIN);
+  Serial.print("Raining: ");
+  Serial.println(rain1 && rain2);
+  return (rain1 && rain2);
 }
 
 void getPir(){
@@ -288,16 +298,79 @@ void getPir(){
   Serial.println("Motion detected!");
 }
 
+double getPressure(){
+  char status;
+  double T,P,p0,a;
+
+  // Loop here getting pressure readings every 10 seconds.
+
+  // You must first get a temperature measurement to perform a pressure reading.
+  
+  // Start a temperature measurement:
+  // If request is successful, the number of ms to wait is returned.
+  // If request is unsuccessful, 0 is returned.
+
+  status = pressure.startTemperature();
+  if (status != 0)
+  {
+    // Wait for the measurement to complete:
+    delay(status);
+
+    // Retrieve the completed temperature measurement:
+    // Note that the measurement is stored in the variable T.
+    // Function returns 1 if successful, 0 if failure.
+
+    status = pressure.getTemperature(T);
+    if (status != 0)
+    {
+      // Print out the measurement:
+      Serial.print("temperature: ");
+      Serial.print(T,2);
+      Serial.print(" deg C, ");
+      Serial.print((9.0/5.0)*T+32.0,2);
+      Serial.println(" deg F");
+      
+      // Start a pressure measurement:
+      // The parameter is the oversampling setting, from 0 to 3 (highest res, longest wait).
+      // If request is successful, the number of ms to wait is returned.
+      // If request is unsuccessful, 0 is returned.
+
+      status = pressure.startPressure(3);
+      if (status != 0)
+      {
+        // Wait for the measurement to complete:
+        delay(status);
+
+        status = pressure.getPressure(P,T);
+        if (status != 0)
+        {
+          // Print out the measurement:
+          Serial.print("absolute pressure: ");
+          Serial.print(P,2);
+          Serial.print(" mb, ");
+          Serial.print(P*0.0295333727,2);
+          Serial.println(" inHg");
+        }
+        else Serial.println("error retrieving pressure measurement\n");
+      }
+      else Serial.println("error starting pressure measurement\n");
+    }
+    else Serial.println("error retrieving temperature measurement\n");
+  }
+  else Serial.println("error starting temperature measurement\n");
+  return P;
+}
+
 int switch1(String param){
   Serial.println("switch1.param : "+param);
 
   // Get state from param
   if (param == "n"){
-      digitalWrite(13, HIGH);
+      digitalWrite(SWITCH1PIN, LOW);
       switch1_state = true;
       Serial.println("switch1 : on");
   }else if (param == "ff"){
-      digitalWrite(13, LOW);
+      digitalWrite(SWITCH1PIN, HIGH);
       switch1_state = false;
       Serial.println("switch1 : off");
   }
@@ -308,11 +381,11 @@ int switch2(String param){
 
   // Get state from param
   if (param == "n"){
-      digitalWrite(13, HIGH);
+      digitalWrite(SWITCH2PIN, LOW);
       switch2_state = true;
       Serial.println("switch2 : on");
   }else if (param == "ff"){
-      digitalWrite(13, LOW);
+      digitalWrite(SWITCH2PIN, HIGH);
       switch2_state = false;
       Serial.println("switch2 : off");
   }
@@ -333,9 +406,10 @@ void loop() {
     airTemp = getAirTemp();
     airHum = getAirHum();
     soilMois = getSoilMois();
+    soilTemp = getSoilTemp();
     brightness = getBrightness();
     precip = getPrecip();
-    getSoilTemp();
+    airPres = getPressure();
 
     Serial.print("Motion: ");
     Serial.println(motion);
@@ -346,9 +420,9 @@ void loop() {
     //reset timer
     timer = 0;
 
-    Serial.println(#######################);
-    Serial.println(#######################);
-    Serial.println(#######################);
+    Serial.println("");
+    Serial.println("#######################");
+    Serial.println("");
     
     startMeasureWind();
   }
