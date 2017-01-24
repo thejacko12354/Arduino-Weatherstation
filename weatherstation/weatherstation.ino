@@ -279,7 +279,7 @@ int getBrightness(){
   Serial.println(brightness);
   Serial.print("Bright: ");
   Serial.println(bright);
-  return soilMois;
+  return brightness;
 }
 
 int getPrecip(){
