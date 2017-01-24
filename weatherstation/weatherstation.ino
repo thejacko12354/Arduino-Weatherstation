@@ -32,15 +32,15 @@ aREST rest = aREST();
 #define DHTPIN 6
 #define SOILTEMPPIN 5
 #define SOILMOISPIN 22
-#define BRIGHTNESSPIN 9
+#define BRIGHTNESSPIN 34
 #define BRIGHTNESSANALOGPIN A10
 #define SOILMOISANALOGPIN A0
-#define RAIN1PIN 7
+#define RAIN1PIN 30
 #define RAIN1ANALOGPIN A8
-#define RAIN2PIN 8
+#define RAIN2PIN 32
 #define RAIN2ANALOGPIN A9
-#define SWITCH1PIN 30
-#define SWITCH2PIN 30
+#define SWITCH1PIN 40
+#define SWITCH2PIN 42
 
 //-----------------------const---------------------------------
 
@@ -119,7 +119,7 @@ void setup() {
 
   rest.variable("motion_detector", &motion);
 
-  rest.variable("brightness", &bright);
+  rest.variable("brightness", &brightness);
   rest.variable("precipation", &precip);
 
   rest.function("switch1",switch1);
@@ -154,7 +154,7 @@ void setup() {
 
   //motion detector init
   pinMode(PIRPIN, INPUT);
-  attachInterrupt(digitalPinToInterrupt(PIRPIN),getPir,RISING);
+  //attachInterrupt(digitalPinToInterrupt(PIRPIN),getPir,RISING);
 
   //pinmode init
   pinMode(SWITCH1PIN, OUTPUT);
@@ -221,8 +221,9 @@ int getAirHum(){
   return humidity;
 }
 
-boolean getSoilTemp(){
+double getSoilTemp(){
   oneWire.reset_search();
+  double temp = 0.00;
   byte i;
   byte present = 0;
   byte data[12];
@@ -230,15 +231,15 @@ boolean getSoilTemp(){
   //find a device
   if (!oneWire.search(addr)) {
     oneWire.reset_search();
-    return false;
+    Serial.println("Error SoilTemp");
   }
   
   if (OneWire::crc8( addr, 7) != addr[7]) {
-    return false;
+    Serial.println("Error SoilTemp");
   }
    
   if (addr[0] != oneWire18S20_ID && addr[0] != oneWire18B20_ID) {
-    return false;
+    Serial.println("Error SoilTemp");
   }
    
   oneWire.reset();
@@ -256,10 +257,10 @@ boolean getSoilTemp(){
     data[i] = oneWire.read();
   }
   // Calculate temperature value
-  soilTemp = ( (data[1] << 8) + data[0] )*0.0625;
+  temp = ( (data[1] << 8) + data[0] )*0.0625;
   Serial.print("Soil Temperature: ");
-  Serial.println(soilTemp);
-  return true;
+  Serial.println(temp);
+  return temp;
 }
 
 double getSoilMois(){
@@ -273,8 +274,8 @@ double getSoilMois(){
 }
 
 int getBrightness(){
-  brightness = analogRead(BRIGHTNESSANALOGPIN);
-  bright = digitalRead(BRIGHTNESSPIN);
+  double brightness = analogRead(BRIGHTNESSANALOGPIN);
+  boolean bright = digitalRead(BRIGHTNESSPIN);
   Serial.print("Brightness: ");
   Serial.println(brightness);
   Serial.print("Bright: ");
