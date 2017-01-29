@@ -63,8 +63,8 @@ int bright = 0;
 int brightness = 0;
 int precip = 0;
 
-bool switch1_state = false;
-bool switch2_state = false;
+String switch1_state = "off";
+String switch2_state = "off";
 
 //initialisieren der variablen für messwerte und die zeitmessung
 unsigned long time = 0;
@@ -122,6 +122,8 @@ void setup() {
   rest.variable("brightness", &brightness);
   rest.variable("precipation", &precip);
 
+  rest.variable("switch1", &switch1_state);
+  rest.variable("switch2", &switch2_state);
   rest.function("switch1",switch1);
   rest.function("switch2",switch2);
   
@@ -161,6 +163,9 @@ void setup() {
   digitalWrite(SWITCH1PIN, HIGH);
   pinMode(SWITCH2PIN, OUTPUT);
   digitalWrite(SWITCH2PIN, HIGH);
+
+  // Start watchdog
+  //wdt_enable(WDTO_4S);
 }
 
 void startMeasureWind(){
@@ -264,7 +269,7 @@ double getSoilTemp(){
 }
 
 double getSoilMois(){
-  double soilMois = analogRead(SOILMOISANALOGPIN);
+  double soilMois = (log10(analogRead(SOILMOISANALOGPIN))/0.06930720659);
   boolean soilMoisDry = digitalRead(SOILMOISPIN);
   Serial.print("Soil Moisture: ");
   Serial.println(soilMois);
@@ -274,7 +279,8 @@ double getSoilMois(){
 }
 
 int getBrightness(){
-  double brightness = analogRead(BRIGHTNESSANALOGPIN);
+  // lux
+  double brightness = ((((-0.0975)*(analogRead(BRIGHTNESSANALOGPIN)))+100)*20);
   boolean bright = digitalRead(BRIGHTNESSPIN);
   Serial.print("Brightness: ");
   Serial.println(brightness);
@@ -368,11 +374,11 @@ int switch1(String param){
   // Get state from param
   if (param == "n"){
       digitalWrite(SWITCH1PIN, LOW);
-      switch1_state = true;
+      switch1_state = "on";
       Serial.println("switch1 : on");
   }else if (param == "ff"){
       digitalWrite(SWITCH1PIN, HIGH);
-      switch1_state = false;
+      switch1_state = "off";
       Serial.println("switch1 : off");
   }
 }
@@ -383,11 +389,11 @@ int switch2(String param){
   // Get state from param
   if (param == "n"){
       digitalWrite(SWITCH2PIN, LOW);
-      switch2_state = true;
+      switch2_state = "on";
       Serial.println("switch2 : on");
   }else if (param == "ff"){
       digitalWrite(SWITCH2PIN, HIGH);
-      switch2_state = false;
+      switch2_state = "off";
       Serial.println("switch2 : off");
   }
 }
@@ -430,4 +436,5 @@ void loop() {
   
   delay(500); //0.5 sec wait
   timer++;
+  //wdt_reset();
 }
