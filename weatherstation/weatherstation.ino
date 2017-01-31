@@ -3,7 +3,6 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <aREST.h>
-#include <PubSubClient.h>
 #include <DHT.h>
 #include <OneWire.h>
 #include <avr/wdt.h>
@@ -372,14 +371,22 @@ int switch1(String param){
   Serial.println("switch1.param : "+param);
 
   // Get state from param
-  if (param == "n"){
+  if (param == ""){
+      if (switch1_state == "on"){
+        return 1;
+      }else{
+        return 0;
+      }
+  }else if (param == "1"){
       digitalWrite(SWITCH1PIN, LOW);
       switch1_state = "on";
       Serial.println("switch1 : on");
-  }else if (param == "ff"){
+      return 1;
+  }else if (param == "0"){
       digitalWrite(SWITCH1PIN, HIGH);
       switch1_state = "off";
       Serial.println("switch1 : off");
+      return 0;
   }
 }
 
@@ -387,14 +394,22 @@ int switch2(String param){
   Serial.println("switch2.param : "+param);
 
   // Get state from param
-  if (param == "n"){
+  if (param == ""){
+      if (switch2_state == "on"){
+        return 1;
+      }else{
+        return 0;
+      }
+  }else if (param == "1"){
       digitalWrite(SWITCH2PIN, LOW);
       switch2_state = "on";
       Serial.println("switch2 : on");
-  }else if (param == "ff"){
+      return 1;
+  }else if (param == "0"){
       digitalWrite(SWITCH2PIN, HIGH);
       switch2_state = "off";
       Serial.println("switch2 : off");
+      return 0;
   }
 }
 
