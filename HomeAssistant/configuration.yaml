@@ -1,0 +1,421 @@
+homeassistant:
+  # Name of the location where Home Assistant is running
+  name: Home
+  # Location required to calculate the time the sun rises and sets
+  latitude: 49.45
+  longitude: 7.75
+  # Impacts weather/sunrise data (altitude above sea level in meters)
+  elevation: 259
+  # metric for Metric, imperial for Imperial
+  unit_system: metric
+  # Pick yours from here: http://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+  time_zone: Europe/Berlin
+
+  customize:
+    # Bewaesserung
+    sensor.starttime_valve_1:
+      icon: mdi:clock
+    sensor.duration_valve_1:
+      icon: mdi:timer-sand
+    sensor.status_valve_1:
+      icon: mdi:water-pump
+    sensor.last_run_valve_1:
+      icon: mdi:history   
+    sensor.schedule_valve_1:
+      icon: mdi:calendar
+    sensor.next_run_valve_1:
+      icon: mdi:calendar-clock
+    automation.turn_on_valve_based_on_schedule:
+      friendly_name: 'Planmäßige Bewässerung'
+      icon: mdi:calendar-check
+    script.open_valve_1:
+      icon: mdi:play-circle
+      friendly_name: 'Starte Bewässerung'
+    script.close_valve_1:
+      icon: mdi:stop-circle
+    
+    # Wetterstation
+    sensor.pws_air_humidity:
+      friendly_name: 'Luftfeuchtigkeit'
+      icon: mdi:water-percent
+    sensor.pws_air_pressure:
+      friendly_name: 'Luftdruck'
+      icon: mdi:speedometer
+    sensor.pws_air_temperature:
+      friendly_name: 'Lufttemperatur'
+    sensor.pws_brightness:
+      friendly_name: 'Helligkeit'
+      icon: mdi:brightness-4
+    sensor.pws_precipation:
+      friendly_name: 'Niederschlag'
+    sensor.pws_soil_moisture:
+      friendly_name: 'Bodenfeuchte'
+      icon: mdi:water-percent
+    sensor.pws_soil_temperature:
+      friendly_name: 'Bodentemperatur'
+    sensor.pws_wind_speed:
+      friendly_name: 'Windgeschwindigkeit'
+      icon: mdi:fan
+
+# Enables the frontend
+frontend:
+
+http:
+  # Uncomment this to add a password (recommended!)
+  # api_password: PASSWORD
+
+# Checks for available updates
+updater:
+
+# Discover some devices automatically
+discovery:
+
+# Allows you to issue voice commands from the frontend in enabled browsers
+conversation:
+
+# Enables support for tracking state changes over time.
+history:
+
+# View all events in a logbook
+logbook:
+
+# Track the sun
+sun:
+
+# Sensorwerte der Wetterstation
+sensor wetterstation:
+  - platform: weatherstation
+    host: 172.16.11.5
+    monitored_conditions:
+      - air_temperature
+      - air_pressure
+      - air_humidity
+      - brightness
+      - soil_temperature
+      - soil_moisture
+      - wind_speed
+
+# Relais Ausgaenge der Wetterstation
+switch:
+  - platform: arest
+    resource: http://172.16.11.5
+    name: Wetterstation
+    functions:
+      switch1:
+        name: Switch1
+      switch2:
+        name: Switch2
+
+
+# Bewaesserungsplan Auswahl
+input_select:
+  valve_1_schedule:
+    name: Schedule
+    options:
+    - Keine Bewässerung
+    - Starte Jetzt
+    - Jeden Tag
+    - Mo / Mi / Fr / So
+    - Mo / Do
+    - Montag
+    - Dienstag
+    - Mittwoch
+    - Donnerstag
+    - Freitag
+    - Samstag
+    - Sonntag
+    initial: Keine Bewässerung
+    icon: mdi:calendar
+
+# Stunde Minute und Dauer Auswahl
+input_slider:
+  valve_1_hour:
+    name: Stunde
+    icon: mdi:clock
+    initial: 9.00
+    min: 0
+    max: 23
+    step: 1
+
+  valve_1_minutes:
+    name: Minute
+    icon: mdi:clock
+    initial: 0.00
+    min: 0
+    max: 55
+    step: 5
+
+  valve_1_duration:
+    name: Dauer
+    icon: mdi:timer-sand
+    initial: 30.00
+    min: 0
+    max: 55
+    step: 5 
+
+# Automatisierungs Einstellungen
+automation:
+  - alias: "Turn on valve based on schedule"
+    trigger:
+      platform: template
+      value_template: '{{states.sensor.starttime_valve_1.state == now().time().strftime("%H:%M")}}'
+
+    condition:
+      - condition: state
+        entity_id: switch.wetterstation_switch1
+        state: 'off'
+
+      - condition: template
+        value_template: "{{states.sensor.next_run_valve_1.state[5:15] == now().date().strftime('%d-%m-%Y')}}"
+
+    action:
+      - service: script.turn_on
+        entity_id: script.open_valve_1
+
+#####################	
+  - alias: "Turn on valve"
+    trigger:
+      - platform: state
+        entity_id: input_select.valve_1_schedule
+        state: "Starte Jetzt"
+
+    action:
+      - service: script.turn_on
+        entity_id: script.open_valve_1
+
+################
+  - alias: "Turn off valve"
+    trigger:
+      - platform: state
+        entity_id: input_select.valve_1_schedule
+        state: "Keine Bewässerung"
+
+    action:
+      - service: script.turn_on
+        entity_id: script.close_valve_1
+
+# script Einstellungen
+script:
+  open_valve_1:
+    alias: "Starte Bewässerung für die eingestellte Dauer"
+    sequence:
+      - service: script.turn_off
+        data:
+          entity_id: script.close_valve_1_delayed
+
+      - service: switch.turn_on
+        data:
+          entity_id: switch.wetterstation_switch1
+
+      - service: script.turn_on
+        data:
+          entity_id: script.close_valve_1_delayed
+
+##############
+  close_valve_1_delayed:
+    alias: "Beende Bewässerung nach der eingestellter Dauer"
+    sequence:
+      - delay: '00:{% if states.input_slider.valve_1_duration.state|length < 4%}0{% endif %}{{ states.input_slider.valve_1_duration.state | int }}'
+      - service: switch.turn_off
+        data:
+          entity_id: switch.wetterstation_switch1
+
+################
+  close_valve_1:
+    alias: "Beende Bewässerung"
+    sequence:
+      - service: script.turn_off
+        data:
+          entity_id: script.close_valve_1_delayed
+
+      - service: switch.turn_off
+        data:
+          entity_id: switch.wetterstation1_switch1
+
+sensor bewaesserung:
+  - platform: template
+    sensors:
+      # Start Zeit Ausgabe
+      starttime_valve_1:
+        friendly_name: 'Start Zeit'
+        entity_id: 
+          - input_slider.valve_1_hour
+          - input_slider.valve_1_minutes
+        value_template: '{% if states.input_slider.valve_1_hour.state|length < 4%}0{% endif %}{{states.input_slider.valve_1_hour.state | int }}:{% if states.input_slider.valve_1_minutes.state|length < 4%}0{% endif %}{{ states.input_slider.valve_1_minutes.state | int }}'
+      
+      # Dauer Ausgabe
+      duration_valve_1:
+        friendly_name: 'Dauer'
+        entity_id: input_slider.valve_1_duration
+        value_template: '00:{% if states.input_slider.valve_1_duration.state|length < 4%}0{% endif %}{{ states.input_slider.valve_1_duration.state | int }}'    
+    
+      # Status Ausgabe
+      status_valve_1:
+        friendly_name: 'Status'
+        value_template: "{% if states.switch.wetterstation_switch1.state == 'on'%}Vor {{((as_timestamp(now()) - as_timestamp(states.switch.wetterstation_switch1.last_changed)) / 60) | round(0) }} Minuten Geöffnet{% else %}Geschlossen{% endif %}"
+    
+      # Letzte Bewaesserung Ausgabe
+      last_run_valve_1:
+        friendly_name: 'Letzte Bewässerung'
+        entity_id: switch.wetterstation_switch1
+        value_template: "{{states.switch.wetterstation_switch1.last_changed.strftime('%a')}}, {{states.switch.wetterstation_switch1.last_changed.strftime('%d-%m-%Y')}}"
+
+      # Bewaesserungsplan Ausgabe
+      schedule_valve_1:
+        friendly_name: 'Bewässerungsplan'
+        entity_id: input_select.valve_1_schedule
+        value_template: "{{ states.input_select.valve_1_schedule.state }}"
+      
+      # Naechste Bewaesserung Ausgabe und Logik
+      next_run_valve_1:
+        friendly_name: 'Nächste Bewässerung'
+        entity_id:
+          - input_slider.valve_1_hour
+          - input_slider.valve_1_minutes
+          - input_select.valve_1_schedule
+          - switch.valve_1
+        value_template: >
+          {# runDay set to 9 = Nicht gesetzt #}
+          {% set runDay = 9 |int %}
+          {# Set todays day #}
+          {% set currentDay = now().weekday() |int %}
+          {%- macro monthu() -%}
+              {%- if currentDay == 0 -%}
+                  {{0}}  
+              {%- elif  currentDay <= 3 -%}
+                  {{3}}
+              {%- else -%}	
+                  {{0}}
+              {%- endif -%}
+          {%- endmacro -%}
+          {%- macro monwedfrisun() -%}
+              {%- if currentDay == 0 -%}
+                  {{0}}  
+              {%- elif  currentDay <= 2 -%}
+                  {{2}}
+              {%- elif  currentDay <= 4 -%}
+                  {{4}}
+              {%- elif  currentDay <= 6 -%}
+                  {{6}}	
+              {%- endif -%}
+          {%- endmacro -%}
+          {# set configured runDay from input_select #}
+          {% if states.input_select.valve_1_schedule.state == "Montag" %}
+              {% set runDay = 0 |int %}
+          {% elif states.input_select.valve_1_schedule.state == "Dienstag" %}
+              {% set runDay = 1 |int %}
+          {% elif states.input_select.valve_1_schedule.state == "Mittwoch" %}
+              {% set runDay = 2 |int %}
+          {% elif states.input_select.valve_1_schedule.state == "Donnerstag" %}
+              {% set runDay = 3 |int %}
+          {% elif states.input_select.valve_1_schedule.state == "Freitag" %}
+              {% set runDay = 4 |int %}
+          {% elif states.input_select.valve_1_schedule.state == "Samstag" %}
+              {% set runDay = 5 |int %}
+          {% elif states.input_select.valve_1_schedule.state == "Sonntag" %}
+              {% set runDay = 6 |int %}
+          {% elif states.input_select.valve_1_schedule.state == "Mo / Do" %}
+              {% set runDay = monthu() |int -%}
+          {% elif states.input_select.valve_1_schedule.state == "Mo / Mi / Fr / So" %}
+              {% set runDay = monwedfrisun() |int %}  
+          {% elif states.input_select.valve_1_schedule.state == "Jeden Tag" %}
+              {% set runDay = currentDay |int %}     
+          {% endif %} 
+          {# determine the next runday #}
+          {% if runDay == 9 %}
+              {# schedule not active #}
+              {% set runDate = "Nicht gesetzt" %}
+          {% else %}
+              {# schedule is active so determine next run #}
+              {# first check if runDay = today #}
+              {% if currentDay == runDay %}
+                  {# are we passed the scheduled time? #}
+                  {% if states.sensor.starttime_valve_1.state < now().time().strftime("%H:%M") %}
+                      {# than we need to fake tomorrow #}
+                      {% set currentDay = (currentDay + 1) |int %}
+                      {# and calculate new runDay in case we have a list of multiple run days in in a week #}
+                      {% if states.input_select.valve_1_schedule.state == "Mo / Do" %}
+                          {% set runDay = monthu() |int -%}
+                      {% elif states.input_select.valve_1_schedule.state == "Mo / Mi / Fr / So" %}
+                          {% set runDay = monwedfrisun() |int %} 
+                      {% elif states.input_select.valve_1_schedule.state == "Jeden Tag" %}
+                          {% set runDay = currentDay |int %} 
+                      {% endif %}
+                  {% endif %}
+              {% endif %}
+              {# Now we can determine next runDate base on now().weekday() and not currentDay as that can be set to fake tomorrow #}	
+              {% if currentDay <= runDay %}
+                  {% set Days = runDay - now().weekday() |int %}
+              {% else %}
+                  {% set Days = runDay + 7 - now().weekday() |int %}
+              {% endif %}
+              {% set runDate = ((as_timestamp(now()) + (86400 * Days)) | timestamp_local) %}
+              {# we also want to show the weekday of the next date #}
+              {% set weekdayList = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] %}
+              {% if now().weekday()+ Days < 7 %}
+                  {% set weekday = weekdayList[(now().weekday()+ Days)] %}
+              {% else %}
+                  {% set weekday = weekdayList[(now().weekday()+ Days)- 7] %}
+              {% endif %} 
+          {% endif %}
+          {# all done #}
+          {# set states.sensor.next_run_date_valve_1.state = runDate #}
+          {% if runDay == 9 %}
+              {# schedule not active #}
+              {{runDate}}
+          {% else %}  
+              {{weekday}}, {{runDate[8:10]}}-{{runDate[5:7]}}-{{runDate[0:4]}} at {{states.sensor.starttime_valve_1.state}}
+          {% endif %}
+
+# UI  Einstellungen
+group:
+#########################
+# Bewaesserung und Wetterstation group
+#########################
+
+  Garten:
+    view: yes
+    entities:
+      - group.valve_1_status
+      - group.weatherstation
+
+# Statusgruppe fuer Ventil 1
+  valve_1_status:
+    name: Ventil 1
+    icon: mdi:water-pump
+    entities:
+      - sensor.status_valve_1
+      - sensor.last_run_valve_1
+      - sensor.next_run_valve_1
+      - sensor.schedule_valve_1
+      - sensor.starttime_valve_1
+      - sensor.duration_valve_1
+      - group.valve_1_settings
+
+# Einstellungsgruppe fuer Ventil 1
+  valve_1_settings:
+    name: 'Einstellungen'
+    icon: mdi:settings
+    entities:
+      - automation.turn_on_valve_based_on_schedule
+      - script.open_valve_1
+      - script.close_valve_1
+      - input_select.valve_1_schedule
+      - input_slider.valve_1_hour
+      - input_slider.valve_1_minutes
+      - input_slider.valve_1_duration
+
+# Gruppe der Wetterstation 
+  weatherstation:
+    name: Wetterstation
+    icon: mdi:weather-partlycloudy
+    entities:
+      - sensor.pws_air_humidity
+      - sensor.pws_air_pressure
+      - sensor.pws_air_temperature
+      - sensor.pws_brightness
+      - sensor.pws_precipation
+      - sensor.pws_soil_moisture
+      - sensor.pws_soil_temperature
+      - sensor.pws_wind_speed
+
