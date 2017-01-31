@@ -91,6 +91,7 @@ sensor wetterstation:
       - air_pressure
       - air_humidity
       - brightness
+      - precipation
       - soil_temperature
       - soil_moisture
       - wind_speed
