@@ -164,7 +164,7 @@ void setup() {
   digitalWrite(SWITCH2PIN, HIGH);
 
   // Start watchdog
-  //wdt_enable(WDTO_4S);
+  wdt_enable(WDTO_4S);
 }
 
 void startMeasureWind(){
@@ -268,7 +268,10 @@ double getSoilTemp(){
 }
 
 double getSoilMois(){
-  double soilMois = (log10(analogRead(SOILMOISANALOGPIN))/0.06930720659);
+  int input = analogRead(SOILMOISANALOGPIN);
+  Serial.print("Soil Moisture: ");
+  Serial.println(input);
+  double soilMois = (((-0.1172)*(input))+120);
   boolean soilMoisDry = digitalRead(SOILMOISPIN);
   Serial.print("Soil Moisture: ");
   Serial.println(soilMois);
@@ -288,9 +291,9 @@ int getBrightness(){
   return brightness;
 }
 
-int getPrecip(){
-  int rain1 = ! digitalRead(RAIN1PIN);
-  int rain2 = ! digitalRead(RAIN2PIN);
+bool getPrecip(){
+  bool rain1 = !digitalRead(RAIN1PIN);
+  bool rain2 = !digitalRead(RAIN2PIN);
 
   int rain1a = analogRead(RAIN1ANALOGPIN);
   int rain2a = analogRead(RAIN2ANALOGPIN);
@@ -451,5 +454,5 @@ void loop() {
   
   delay(500); //0.5 sec wait
   timer++;
-  //wdt_reset();
+  wdt_reset();
 }
