@@ -1,8 +1,6 @@
 """
 Support for an Arduino Weatherstation
 
-For more details about this platform, please refer to the documentation
-https://home-assistant.io/components/demo/
 """
 import logging
 from datetime import timedelta
@@ -50,24 +48,6 @@ PLATFORM_SCHEMA = PLATFORM_SCHEMA.extend({
 })
 
 
-CONDITION_CLASSES = {
-    'cloudy': [],
-    'fog': [],
-    'hail': [],
-    'lightning': [],
-    'lightning-rainy': [],
-    'partlycloudy': [],
-    'pouring': [],
-    'rainy': ['shower rain'],
-    'snowy': [],
-    'snowy-rainy': [],
-    'sunny': ['sunshine'],
-    'windy': [],
-    'windy-variant': [],
-    'exceptional': [],
-}
-
-
 def setup_platform(hass, config, add_devices, discovery_info=None):
     """Setup the Arduino Weatherstation."""
 
@@ -102,7 +82,7 @@ class ArduinoWeatherSensor(Entity):
     def __init__(self, data, condition):
         """Initialize the weather condition."""
         self._condition = condition
-        self.data = data
+        self._weatherdata = data
         self._state = None
 
     @property
@@ -126,8 +106,8 @@ class ArduinoWeatherSensor(Entity):
 
     def update(self):
         """Update conditions"""
-        self.data.update()
-        self._state = self.data.data[self._condition]
+        self._weatherdata.update()
+        self._state = self._weatherdata.data[self._condition]
 
 class ArduinoWeatherData(object):
     """Get data from the Weatherstation"""
