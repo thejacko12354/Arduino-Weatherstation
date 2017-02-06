@@ -305,6 +305,12 @@ bool getPrecip(){
 void getPir(){
   motion = digitalRead(PIRPIN);
   Serial.println("Motion detected!");
+  if (switch1_state == "on"){
+    switch1("0");
+  }
+  if (switch2_state == "on"){
+    switch2("0");
+  }
 }
 
 double getPressure(){
